@@ -11,7 +11,7 @@ const blogSchema = mongoose.Schema({
   created: { type: Date, default: Date.now }
 })
 
-blogSchema.methods.virtual('authorName').get(function() {
+blogSchema.virtual('authorName').get(function() {
   return `${this.author.firstName} ${this.author.lastname}`
 })
 
