@@ -4,36 +4,9 @@ const router = express.Router()
 const bodyParser = require('body-parser')
 const jsonParser = bodyParser.json()
 
-const { BlogPosts } = require('./models')
-
-// Recipes.create('boiled white rice', ['1 cup white rice', '2 cups water', 'pinch of salt'])
-// Recipes.create('milkshake', ['2 tbsp cocoa', '2 cups vanilla ice cream', '1 cup milk'])
-// 👆 create some fake posts
-BlogPosts.create(
-  'My first blog',
-  'Lorem ipsum dolor sit amet, natum mollis mediocritatem eam cu. Utamur tacimates cu mei, at posse luptatum usu, cu ludus ancillae postulant qui. Duo accumsan atomorum comprehensam in? Id qui illum malis appareat, pro nulla mentitum molestiae an.',
-  'Benjamin Mathew'
-)
-
-BlogPosts.create(
-  'My second blog',
-  'Lorem pip dolor sit amet, natum mollis mediocritatem eam cu. Utamur tacimates cu mei, at posse luptatum usu, cu ludus ancillae postulant qui. Duo accumsan atomorum comprehensam in? Id qui illum malis appareat, pro nulla mentitum molestiae an.',
-  'Ed Mathew'
-)
-
-BlogPosts.create(
-  'third lol',
-  'Lorem ipsum dolor sit amet, natum mollis mediocritatem eam cu. Utamur tacimates cu mei, at posse luptatum usu, cu ludus ancillae postulant qui. Duo accumsan atomorum comprehensam in? Id qui illum malis appareat, pro nulla mentitum molestiae an.',
-  'Benjamin Mathew'
-)
-
-BlogPosts.create(
-  'My fourth blog',
-  'Lorem pip dolor sit amet, natum mollis mediocritatem eam cu. Utamur tacimates cu mei, at posse luptatum usu, cu ludus ancillae postulant qui. Duo accumsan atomorum comprehensam in? Id qui illum malis appareat, pro nulla mentitum molestiae an.',
-  'Ed Mathew'
-)
-
-// GET and POST requests should go to /blog-posts.
+const mongoose = require('mongoose')
+mongoose.Promise = global.Promise
+const { Blog } = require('./models')
 
 router.post('/', jsonParser, (req, res) => {
   const requiredFields = ['title', 'content', 'author']
@@ -46,54 +19,74 @@ router.post('/', jsonParser, (req, res) => {
       return res.status(400).send(message)
     }
   }
-  const item = BlogPosts.create(req.body.title, req.body.content, req.body.author)
-  res.status(201).json(item)
+
+  Blog.create({
+    title: req.body.title,
+    content: req.body.content,
+    author: req.body.author
+  })
+    .then(blogPost => res.status(201).json(blogPost.serialize()))
+    .catch(err => {
+      console.log(err)
+      res.status(500).json({ error: 'Internal server error' })
+    })
 })
 
-// DELETE and PUT requests should go to /blog-posts/:id.
-
 router.delete('/:id', (req, res) => {
-  BlogPosts.delete(req.params.id)
-  console.log(`deleted blog post with id of ${req.params.id}`)
-  res.status(204).end()
+  Blog.findByIdAndRemove(req.params.id)
+    .then(post => {
+      console.log(`deleted blog post with id of ${req.params.id}`)
+      res.status(204).end()
+    })
+    .catch(err => res.status(500).json(message`${err}`))
 })
 
 router.put('/:id', jsonParser, (req, res) => {
-  const requiredFields = ['title', 'author', 'content']
-  for (let i = 0; i < requiredFields.length; i++) {
-    const field = requiredFields[i]
-
-    if (!field in req.body) {
-      const message = `Missing ${field} in request body`
-      console.error(message)
-      return res.status(400).send(message)
-    }
-  }
-
-  if (req.params.id !== req.body.id) {
-    const message = `Request path ${req.params.id} and request body id ${
+  if (!(req.body.id && req.params.id && req.params.id === req.body.id)) {
+    const message = `Request path ID (${req.params.id}) and request body ID (${
       req.body.id
-    } must match`
+    }) do no match`
+
     console.error(message)
-    return res.status(400).send(message)
+    return res.status(400).json({ message: message })
   }
 
-  console.log(`updated blog post with id of ${req.params.id}`)
+  const toUpdate = {}
+  const updateableFields = ['title', 'author', 'content', 'created']
 
-  const updatedItem = BlogPosts.update({
-    id: req.params.id,
-    title: req.body.title,
-    author: req.body.author,
-    content: req.body.content
+  updateableFields.map(field => {
+    if (field in req.body) {
+      toUpdate[field] = req.body[field]
+    }
   })
 
-  res.status(204).end()
+  Restaurant.findByIdAndUpdate(req.params.id, { $set: toUpdate })
+    .then(post => res.status(204).end())
+    .catch(err => res.status(500).json({ message: 'Internal server error' }))
 })
 
 // Use Express router and modularize routes to /blog-posts.
 
 router.get('/', (req, res) => {
-  res.json(BlogPosts.get())
+  Blog.find()
+    .limit(10)
+    .then(blogPosts => {
+      res.json(blogPosts.map(post => post))
+    })
+    .catch(err => {
+      console.log(err)
+      res.status(500).json({ message: 'Internal server error' })
+    })
 })
 
+router.get('/:id', (req, res) => {
+  Blog.findById(req.params.id)
+    .then(blogPost => {
+      res.json(blogPost)
+    })
+    .catch(err => {
+      console.log(err)
+      res.status(500).json({ message: 'Internal server error' })
+    })
+})
 module.exports = router
